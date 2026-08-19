@@ -26,6 +26,8 @@ PROBE="http://127.0.0.1:${PROBE_PORT}"
 [[ -f "$PREFIX/install-state.env" ]] && { set -a; # shellcheck disable=SC1091
   source "$PREFIX/install-state.env"; set +a; }
 CONSOLE="${CONSOLE:-}"
+# 规范化 console 路径: 忽略首尾斜杠, 避免 //api/me 404
+CONSOLE="$(printf '%s' "$CONSOLE" | sed 's#^/*##; s#/*$##')"
 
 pass=0; fail=0
 check() { # check <name> <expected_rc/status> <actual>
