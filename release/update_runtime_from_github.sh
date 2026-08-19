@@ -78,7 +78,8 @@ safe_extract_tar_gz() {
   listing="$(tar -tzf "$tgz")"
   while IFS= read -r path; do
     [[ -z "$path" ]] && continue
-    if [[ "$path" == /* ]] || [[ "$path" == *..* ]]; then
+    # 仅拒绝真正的路径逃逸 (fe 包含 [[...path]] 模板目录名, 不能误伤)
+    if [[ "$path" == /* ]] || [[ "$path" == ../* ]] || [[ "$path" == *"/../"* ]] || [[ "$path" == *"/.." ]]; then
       echo "tar entry rejected (path escape): $path" >&2
       return 1
     fi
