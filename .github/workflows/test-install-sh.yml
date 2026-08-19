@@ -1,0 +1,96 @@
+# GitHub runner 上测试 sh 安装路径 (x86_64 + aarch64)
+#
+# 数据/缓存服务用本机 docker 起好 (模拟"用户自备数据服务, 手工填连接串"场景),
+# gv6 本体走 install.sh --env-file 非交互安装, 然后冒烟。
+name: test-install-sh
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "发布版本(留空=latest)"
+        type: string
+        required: false
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  install-sh:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runs-on: ubuntu-24.04
+          - arch: aarch64
+            runs-on: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runs-on }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: start data services (postgres 4db + redis)
+        run: |
+          set -euo pipefail
+          cd docker
+          if [[ ! -f .env ]]; then
+            echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)" > .env
+            echo "REDIS_PASSWORD=$(openssl rand -hex 16)" >> .env
+          fi
+          docker compose up -d
+          for i in $(seq 1 60); do
+            if docker compose exec -T postgres pg_isready -U gv6 >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          docker compose exec -T postgres pg_isready -U gv6 >/dev/null
+
+      - name: write connection env file (管理面/业务面分组)
+        run: |
+          set -euo pipefail
+          set -a; source docker/.env; set +a
+          cat > "$RUNNER_TEMP/gv6.env" <<EOF
+# 业务面 (探测/分析)
+GV6_DATABASE_URL=postgres://gv6:${POSTGRES_PASSWORD}@127.0.0.1:5432/greenv6
+GV6_BIZ_DATABASE_URL=postgres://gv6:${POSTGRES_PASSWORD}@127.0.0.1:5432/gv6_biz
+GV6_ASSOCIATION_DATABASE_URL=postgres://gv6:${POSTGRES_PASSWORD}@127.0.0.1:5432/gv6_assoc
+# 管理面 (面板/审计)
+GV6_ADMIN_DATABASE_URL=postgres://gv6:${POSTGRES_PASSWORD}@127.0.0.1:5432/gv6_admin
+# 缓存
+GV5_REDIS_URL=redis://:${REDIS_PASSWORD}@127.0.0.1:6379/0
+# 面板登录 (runner 上不开真实官网, 用占位)
+GV6_OFFICIAL_URL=https://example.com
+GV6_OAUTH_ADMIN_EMAILS=admin@example.com
+GV6_OAUTH_LOCAL_USER=admin
+GV6_OAUTH_REDIRECT_URI=http://127.0.0.1:28680/oauth/callback
+GV6_ANALYZE_WORKERS=1
+EOF
+
+      - name: run install.sh (sh 安装路径)
+        id: install
+        run: |
+          set -euo pipefail
+          ARGS=(--arch "${{ matrix.arch }}" --prefix "$RUNNER_TEMP/gv6" \
+                --env-file "$RUNNER_TEMP/gv6.env" --no-systemd --yes)
+          if [[ -n "${{ inputs.version }}" ]]; then ARGS+=(--version "${{ inputs.version }}"); fi
+          bash install.sh "${ARGS[@]}" 2>&1 | tee /tmp/install.log
+          [[ -f "$RUNNER_TEMP/gv6/install-state.env" ]] || { cat /tmp/install.log; exit 1; }
+          grep -E '^(VERSION|ARCH|CONSOLE|PREFIX)=' "$RUNNER_TEMP/gv6/install-state.env"
+
+      - name: smoke test
+        run: |
+          bash test/smoke_install.sh --prefix "$RUNNER_TEMP/gv6" || true
+          # 服务由 install.sh --no-systemd 后台拉起; 若健康门已在安装期通过, 冒烟应全绿
+          bash test/smoke_install.sh --prefix "$RUNNER_TEMP/gv6"
+
+      - name: upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: install-sh-${{ matrix.arch }}
+          path: |
+            /tmp/install.log
+            ${{ runner.temp }}/gv6/log/
+          if-no-files-found: ignore

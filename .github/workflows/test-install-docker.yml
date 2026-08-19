@@ -1,0 +1,56 @@
+# GitHub runner 上测试 Docker 路径 (x86_64 + aarch64)
+#
+# install.sh --with-docker: 由安装器自动起 postgres(4库)+redis 数据服务容器,
+# 自动生成随机密码并预填连接串, 其余与 sh 安装一致。
+name: test-install-docker
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "发布版本(留空=latest)"
+        type: string
+        required: false
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  install-docker:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runs-on: ubuntu-24.04
+          - arch: aarch64
+            runs-on: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runs-on }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: run install.sh --with-docker
+        id: install
+        run: |
+          set -euo pipefail
+          ARGS=(--arch "${{ matrix.arch }}" --prefix "$RUNNER_TEMP/gv6" --with-docker --no-systemd --yes)
+          if [[ -n "${{ inputs.version }}" ]]; then ARGS+=(--version "${{ inputs.version }}"); fi
+          bash install.sh "${ARGS[@]}" 2>&1 | tee /tmp/install.log
+          [[ -f "$RUNNER_TEMP/gv6/install-state.env" ]] || { cat /tmp/install.log; exit 1; }
+          grep -E '^(VERSION|ARCH|CONSOLE|PREFIX)=' "$RUNNER_TEMP/gv6/install-state.env"
+
+      - name: smoke test
+        run: bash test/smoke_install.sh --prefix "$RUNNER_TEMP/gv6"
+
+      - name: upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: install-docker-${{ matrix.arch }}
+          path: |
+            /tmp/install.log
+            ${{ runner.temp }}/gv6/log/
+          if-no-files-found: ignore
