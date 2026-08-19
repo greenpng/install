@@ -296,9 +296,11 @@ GV6_STATIC_DIR=${PREFIX}/fe
 EOF
 chmod 600 "$PREFIX/.env"
 
-# ---------- gv6 install: data dir + console 引导 ----------
+# ---------- gv6 install: data dir + console 引导 (需先载入 .env 的 DSN) ----------
 say "initializing data dir..."
-"$PREFIX/bin/gv6" install --data-dir "$PREFIX/data" | tee "$TMP/gv6-install.out"
+( set -a; # shellcheck disable=SC1091
+  source "$PREFIX/.env"; set +a
+  "$PREFIX/bin/gv6" install --data-dir "$PREFIX/data" ) | tee "$TMP/gv6-install.out"
 CONSOLE="$(grep -oE 'console_path=/?[A-Za-z0-9_/-]+' "$TMP/gv6-install.out" | head -1 | cut -d= -f2-)"
 [[ -n "$CONSOLE" ]] || CONSOLE="<console from gv6 install output>"
 
