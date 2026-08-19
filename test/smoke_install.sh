@@ -43,7 +43,7 @@ GOT=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$PROBE/v1/health")
 check "probe-plane health ($PROBE/v1/health)" "200" "$GOT"
 
 if [[ -n "$CONSOLE" ]]; then
-  GOT=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$ADMIN${CONSOLE}/api/me")
+  GOT=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$ADMIN/${CONSOLE}/api/me")
   check "admin console unauth -> 401 (console=$CONSOLE)" "401" "$GOT"
 else
   echo "WARN  console path unknown (install-state.env missing CONSOLE) — skip admin auth check"
