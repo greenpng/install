@@ -52,21 +52,21 @@ jobs:
           set -euo pipefail
           set -a; source docker/.env; set +a
           cat > "$RUNNER_TEMP/gv6.env" <<EOF
-# 业务面 (探测/分析)
-GV6_DATABASE_URL=postgres://gv6:${POSTGRES_PASSWORD}@127.0.0.1:5432/greenv6
-GV6_BIZ_DATABASE_URL=postgres://gv6:${POSTGRES_PASSWORD}@127.0.0.1:5432/gv6_biz
-GV6_ASSOCIATION_DATABASE_URL=postgres://gv6:${POSTGRES_PASSWORD}@127.0.0.1:5432/gv6_assoc
-# 管理面 (面板/审计)
-GV6_ADMIN_DATABASE_URL=postgres://gv6:${POSTGRES_PASSWORD}@127.0.0.1:5432/gv6_admin
-# 缓存
-GV5_REDIS_URL=redis://:${REDIS_PASSWORD}@127.0.0.1:6379/0
-# 面板登录 (runner 上不开真实官网, 用占位)
-GV6_OFFICIAL_URL=https://example.com
-GV6_OAUTH_ADMIN_EMAILS=admin@example.com
-GV6_OAUTH_LOCAL_USER=admin
-GV6_OAUTH_REDIRECT_URI=http://127.0.0.1:28680/oauth/callback
-GV6_ANALYZE_WORKERS=1
-EOF
+          # 业务面 (探测/分析)
+          GV6_DATABASE_URL=postgres://gv6:${POSTGRES_PASSWORD}@127.0.0.1:5432/greenv6
+          GV6_BIZ_DATABASE_URL=postgres://gv6:${POSTGRES_PASSWORD}@127.0.0.1:5432/gv6_biz
+          GV6_ASSOCIATION_DATABASE_URL=postgres://gv6:${POSTGRES_PASSWORD}@127.0.0.1:5432/gv6_assoc
+          # 管理面 (面板/审计)
+          GV6_ADMIN_DATABASE_URL=postgres://gv6:${POSTGRES_PASSWORD}@127.0.0.1:5432/gv6_admin
+          # 缓存
+          GV5_REDIS_URL=redis://:${REDIS_PASSWORD}@127.0.0.1:6379/0
+          # 面板登录 (runner 上不开真实官网, 用占位)
+          GV6_OFFICIAL_URL=https://example.com
+          GV6_OAUTH_ADMIN_EMAILS=admin@example.com
+          GV6_OAUTH_LOCAL_USER=admin
+          GV6_OAUTH_REDIRECT_URI=http://127.0.0.1:28680/oauth/callback
+          GV6_ANALYZE_WORKERS=1
+          EOF
 
       - name: run install.sh (sh 安装路径)
         id: install
