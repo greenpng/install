@@ -42,10 +42,14 @@ jobs:
           fi
           docker compose up -d
           for i in $(seq 1 60); do
-            if docker compose exec -T postgres pg_isready -U gv6 >/dev/null 2>&1; then break; fi
+            if docker compose exec -T postgres pg_isready -U gv6 >/dev/null 2>&1; then
+              echo "postgres ready after ${i}s"
+              break
+            fi
+            echo "waiting for postgres (${i}/60)"
             sleep 1
           done
-          docker compose exec -T postgres pg_isready -U gv6 >/dev/null
+          docker compose exec -T postgres pg_isready -U gv6
 
       - name: write connection env file (管理面/业务面分组)
         run: |

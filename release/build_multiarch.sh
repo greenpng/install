@@ -143,10 +143,18 @@ PY
 )
   done
 
-  if [[ ! -f "$out/fe-${VERSION}.tgz" ]]; then
+  # FE/admin-spa 与架构无关: 若其他 arch 目录已打包同版本, 复制字节 (sha 一致),
+  # 否则本 arch 首次打包。gzip 含时间戳, 重复打包会产生不同 sha → 各 arch manifest 不一致。
+  fe_master="$(find "$ROOT/dist" -maxdepth 2 -name "fe-${VERSION}.tgz" ! -path "$out/*" | head -1 || true)"
+  if [[ -n "$fe_master" && "$fe_master" != "$out/fe-${VERSION}.tgz" ]]; then
+    cp -f "$fe_master" "$out/fe-${VERSION}.tgz"
+  elif [[ ! -f "$out/fe-${VERSION}.tgz" ]]; then
     tar -C "$ROOT" -czhf "$out/fe-${VERSION}.tgz" fe
   fi
-  if [[ -d "$ROOT/admin-spa" && ! -f "$out/admin-spa.tgz" ]]; then
+  admin_master="$(find "$ROOT/dist" -maxdepth 2 -name "admin-spa.tgz" ! -path "$out/*" | head -1 || true)"
+  if [[ -n "$admin_master" && "$admin_master" != "$out/admin-spa.tgz" ]]; then
+    cp -f "$admin_master" "$out/admin-spa.tgz"
+  elif [[ -d "$ROOT/admin-spa" && ! -f "$out/admin-spa.tgz" ]]; then
     tar -C "$ROOT" -czf "$out/admin-spa.tgz" admin-spa
   fi
 
