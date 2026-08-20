@@ -15,7 +15,7 @@
 set -euo pipefail
 
 INSTALL_ROOT="${INSTALL_ROOT:-/opt/green-v6}"
-RELEASE_REPO="${RELEASE_REPO:-greenpng/gv6-releases}"
+RELEASE_REPO="${RELEASE_REPO:-greenpng/green-v7}"
 REQUIRE_SHA="${REQUIRE_SHA:-1}"
 HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:28680/v1/health}"
 VERSION="${VERSION:-}"

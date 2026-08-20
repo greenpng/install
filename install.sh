@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # green-v6 一键安装脚本 (sh)
 #
-# 从 greenpng/gv6-releases 下载签名发布资产 (x86_64 / aarch64), 校验 sha256 +
+# 从 greenpng/green-v7 下载签名发布资产 (x86_64 / aarch64), 校验 sha256 +
 # ed25519 模块签名, 落地 /opt/green-v6, 生成 systemd 服务。
+# 旧版本兜底: greenpng/gv6-releases (v6.0.28 及更早发布仍在旧仓库)。
 #
 # 数据库/缓存连接信息按"管理面 / 业务面 / 缓存"分组填写:
 #   - 业务面(探测/分析): GV6_DATABASE_URL  GV6_BIZ_DATABASE_URL  GV6_ASSOCIATION_DATABASE_URL
@@ -20,7 +21,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RELEASE_REPO="${GV6_RELEASE_REPO:-greenpng/gv6-releases}"
+RELEASE_REPO="${GV6_RELEASE_REPO:-greenpng/green-v7}"
+LEGACY_REPO="${GV6_LEGACY_RELEASE_REPO:-greenpng/gv6-releases}"
 RAW_BASE="${GV6_RAW_BASE:-https://raw.githubusercontent.com/greenpng/install/main}"
 PREFIX="${GV6_PREFIX:-/opt/green-v6}"
 VERSION=""
@@ -87,11 +89,16 @@ if [[ -z "$VERSION" ]]; then
   if [[ "$PY3" == "1" ]]; then
     VERSION="$(curl -fsSL "https://api.github.com/repos/${RELEASE_REPO}/releases/latest" 2>/dev/null \
       | python3 -c 'import sys,json; print(json.load(sys.stdin).get("tag_name","").lstrip("v"))' 2>/dev/null || true)"
+    if [[ -z "$VERSION" && "$LEGACY_REPO" != "$RELEASE_REPO" ]]; then
+      VERSION="$(curl -fsSL "https://api.github.com/repos/${LEGACY_REPO}/releases/latest" 2>/dev/null \
+        | python3 -c 'import sys,json; print(json.load(sys.stdin).get("tag_name","").lstrip("v"))' 2>/dev/null || true)"
+    fi
   fi
   [[ -z "$VERSION" ]] && die "cannot resolve latest version; pass --version"
 fi
 say "version=$VERSION arch=$ARCH triple=$TRIPLE prefix=$PREFIX"
 BASE="https://github.com/${RELEASE_REPO}/releases/download/v${VERSION}"
+LEGACY_BASE="https://github.com/${LEGACY_REPO}/releases/download/v${VERSION}"
 
 # ---------- (可选) Docker 数据服务: PG(4 库) + Redis ----------
 POSTGRES_PASSWORD=""; REDIS_PASSWORD=""
@@ -168,7 +175,9 @@ trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$PREFIX/bin" "$PREFIX/modules" "$PREFIX/data" "$PREFIX/dist/release-$VERSION"
 
 resolve_manifest() {
-  if curl -fsSL -o "$TMP/manifest-index.json" "$BASE/manifest-index.json" 2>/dev/null; then
+  # 先在当前 base 解析; 失败且还有 legacy 仓库时翻转 BASE 重试 (旧版本兜底)
+  local base="$BASE" ok=0
+  if curl -fsSL -o "$TMP/manifest-index.json" "$base/manifest-index.json" 2>/dev/null; then
     if [[ "$PY3" == "1" ]]; then
       man_name=$(python3 - <<PY
 import json
@@ -178,17 +187,29 @@ print(e.get("manifest") or "")
 PY
 )
       if [[ -n "$man_name" && "$man_name" != *"/"* && "$man_name" != *".."* ]] \
-        && curl -fsSL -o "$TMP/manifest.json" "$BASE/$man_name"; then
+        && curl -fsSL -o "$TMP/manifest.json" "$base/$man_name"; then
         say "manifest from index: $man_name"
-        return 0
+        ok=1
       fi
     fi
   fi
-  for m in "manifest-${TRIPLE}.json" "manifest.json"; do
-    if curl -fsSL -o "$TMP/manifest.json" "$BASE/$m" 2>/dev/null; then
-      say "manifest: $m"; return 0
-    fi
-  done
+  if [[ "$ok" != "1" ]]; then
+    for m in "manifest-${TRIPLE}.json" "manifest.json"; do
+      if curl -fsSL -o "$TMP/manifest.json" "$base/$m" 2>/dev/null; then
+        say "manifest: $m"; ok=1; break
+      fi
+    done
+  fi
+  if [[ "$ok" == "1" ]]; then
+    BASE="$base"   # 钉住已解析源, 后续资产下载与 manifest 同源
+    return 0
+  fi
+  if [[ "$base" != "$LEGACY_BASE" && -n "$LEGACY_BASE" ]]; then
+    say "release not found on $base — retrying legacy $LEGACY_BASE"
+    BASE="$LEGACY_BASE"
+    resolve_manifest
+    return $?
+  fi
   return 1
 }
 resolve_manifest || die "cannot resolve manifest for $VERSION/$TRIPLE"
