@@ -43,7 +43,7 @@ def main() -> int:
         "version": 1,
         "metadata": {
             "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "tools": [{"name": "scripts/release/cargo_cyclonedx.py", "version": "1"}],
+            "tools": [{"name": "release/cargo_cyclonedx.py", "version": "1"}],
         },
         "components": components,
     }

@@ -4,11 +4,11 @@
 # runtime / in-tree plane changes that require process restart.
 #
 # Usage on the server (or via SSH):
-#   VERSION=6.0.2 bash scripts/release/update_runtime_from_github.sh
+#   VERSION=6.0.2 bash release/update_runtime_from_github.sh
 # Env:
 #   VERSION          default: from /opt/green-v6/VERSION or required
 #   INSTALL_ROOT     default: /opt/green-v6
-#   RELEASE_REPO     default: kullyeilert-jpg/gv6-releases
+#   RELEASE_REPO     default: greenpng/gv6-releases
 #   ARCH_TRIPLE      default: auto from uname -m → {arch}-linux-gnu
 #   REQUIRE_SHA      default: 1 — fail if manifest lacks runtime.sha256
 #   HEALTH_URL       default: http://127.0.0.1:28680/v1/health
@@ -78,7 +78,7 @@ safe_extract_tar_gz() {
   listing="$(tar -tzf "$tgz")"
   while IFS= read -r path; do
     [[ -z "$path" ]] && continue
-    # 仅拒绝真正的路径逃逸 (fe 包含 [[...path]] 模板目录名, 不能误伤)
+    # 仅拒绝真正的路径逃逸 (fe 包含 [[...path]] 模板目录名, 不能误伤 "..")
     if [[ "$path" == /* ]] || [[ "$path" == ../* ]] || [[ "$path" == *"/../"* ]] || [[ "$path" == *"/.." ]]; then
       echo "tar entry rejected (path escape): $path" >&2
       return 1

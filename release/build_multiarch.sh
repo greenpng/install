@@ -3,7 +3,7 @@
 #
 # Recommended local workflow (no GitHub Actions minutes):
 #   1. Install: Docker + `cargo install cross --locked`
-#   2. bash scripts/release/build_multiarch.sh SKIP_PUBLISH=1
+#   2. bash release/build_multiarch.sh SKIP_PUBLISH=1
 #   3. gh release upload …   # hosting only; build stays on your box
 #
 # Env:
@@ -16,6 +16,15 @@ SRC_ROOT="${GV6_SRC:-$(cd "$(dirname "$0")/../../.." && pwd)}"
 ROOT="$SRC_ROOT"
 cd "$ROOT"
 VERSION="$(tr -d '[:space:]' < VERSION)"
+# v7 layout (probe/fe, panel/admin-spa) vs legacy v6 layout (fe/, admin-spa/)
+FE_DIR="probe/fe"; [[ -d "$ROOT/probe/fe" ]] || FE_DIR="fe"
+SPA_DIR="panel/admin-spa"; [[ -d "$ROOT/panel/admin-spa" ]] || SPA_DIR="admin-spa"
+# P0-1/P0-4: one build_id + obf salt for the whole release (all arches share it).
+GV6_BUILD_ID="${GV6_BUILD_ID:-$(openssl rand -hex 12)}"
+export GV6_BUILD_ID
+GV6_OBF_SALT="${GV6_OBF_SALT:-$(openssl rand -hex 16)}"
+export GV6_OBF_SALT
+echo "[multiarch] build_id=$GV6_BUILD_ID"
 TARGETS="${TARGETS:-x86_64 aarch64}"
 HOST_ARCH="$(uname -m)"
 case "$HOST_ARCH" in
@@ -88,7 +97,7 @@ ensure_keys() {
 }
 
 ensure_fe() {
-  echo -n "$VERSION" > "$ROOT/fe/VERSION"
+  echo -n "$VERSION" > "$ROOT/$FE_DIR/VERSION"
   if [[ -x "$ROOT/scripts/fe/rebuild_bundles.sh" ]]; then
     bash "$ROOT/scripts/fe/rebuild_bundles.sh"
   fi
@@ -101,7 +110,7 @@ stage_artifacts() {
   local target_dir="$4"
 
   mkdir -p "$out"
-  # 公钥随产物分发 (installer 从 release 资产读取公钥验签)
+  # 公钥随产物分发 (install.sh 从 release 资产读取公钥验签)
   if [[ -f "$ROOT/keys/ota_ed25519.pk" ]]; then
     cp -f "$ROOT/keys/ota_ed25519.pk" "$out/ota_ed25519.pk"
   elif [[ -f "$ROOT/keys/ota_ed25519.pub" ]]; then
@@ -132,7 +141,8 @@ stage_artifacts() {
     cp -f "$so" "$out/$asset"
     art=$(cargo run -q -p gv6-cli -- sign-module \
       --name "$name" --version "$VERSION" --so "$out/$asset" \
-      --secret-key "$ROOT/keys/ota_ed25519.sk" --domain "$name")
+      --secret-key "$ROOT/keys/ota_ed25519.sk" --domain "$name" \
+      --release-key "$RELEASE_SK")
     echo "$art" > "$out/${name}.artifact.json"
     mods_json=$(python3 - <<PY
 import json
@@ -149,17 +159,17 @@ PY
   if [[ -n "$fe_master" && "$fe_master" != "$out/fe-${VERSION}.tgz" ]]; then
     cp -f "$fe_master" "$out/fe-${VERSION}.tgz"
   elif [[ ! -f "$out/fe-${VERSION}.tgz" ]]; then
-    tar -C "$ROOT" -czhf "$out/fe-${VERSION}.tgz" fe
+    tar -C "$ROOT" -czhf "$out/fe-${VERSION}.tgz" "$FE_DIR"
   fi
   admin_master="$(find "$ROOT/dist" -maxdepth 2 -name "admin-spa.tgz" ! -path "$out/*" | head -1 || true)"
   if [[ -n "$admin_master" && "$admin_master" != "$out/admin-spa.tgz" ]]; then
     cp -f "$admin_master" "$out/admin-spa.tgz"
-  elif [[ -d "$ROOT/admin-spa" && ! -f "$out/admin-spa.tgz" ]]; then
-    tar -C "$ROOT" -czf "$out/admin-spa.tgz" admin-spa
+  elif [[ -d "$ROOT/$SPA_DIR" && ! -f "$out/admin-spa.tgz" ]]; then
+    tar -C "$ROOT" -czf "$out/admin-spa.tgz" panel/admin-spa
   fi
 
   python3 - <<PY
-import hashlib, json, pathlib
+import hashlib, json, os, pathlib
 out = pathlib.Path(r"""$out""")
 version = """$VERSION"""
 triple = """$triple"""
@@ -170,6 +180,9 @@ fe = out / f"fe-{version}.tgz"
 man = {
     "product": "green-v6",
     "channel": "stable",
+    "build_id": os.environ.get("GV6_BUILD_ID", ""),
+    "release_pubkey": os.environ.get("RELEASE_PK_HEX", ""),
+    "release_cert": os.environ.get("RELEASE_CERT", ""),
     "arch": arch,
     "triple": triple,
     "runtime": {
@@ -233,6 +246,32 @@ build_cross() {
 }
 
 ensure_keys
+
+# P0-2: one ephemeral per-release signing key for the whole release; the root
+# key certifies it. Secret stays local (never merged into $MERGE).
+RELKEY_DIR="$ROOT/dist/keys-release-$VERSION"
+mkdir -p "$RELKEY_DIR"
+if [[ ! -f "$RELKEY_DIR/ota_ed25519.sk" ]]; then
+  cargo run -q -p gv6-cli -- keygen --out-dir "$RELKEY_DIR"
+fi
+RELEASE_PK_HEX="$(python3 -c "import pathlib,sys; sys.stdout.write(pathlib.Path(r'$RELKEY_DIR/ota_ed25519.pk').read_bytes().hex())")"
+RELEASE_SK="$RELKEY_DIR/ota_ed25519.sk"
+if [[ -z "$RELEASE_PK_HEX" || ! -f "$RELEASE_SK" ]]; then
+  echo "[multiarch] FAILED per-release keypair" >&2
+  exit 1
+fi
+RELEASE_CERT="$(cargo run -q -p gv6-cli -- sign-cert \
+  --secret-key "$ROOT/keys/ota_ed25519.sk" \
+  --version "$VERSION" \
+  --build-id "$GV6_BUILD_ID" \
+  --release-pubkey "$RELEASE_PK_HEX")"
+if [[ -z "$RELEASE_CERT" || "$RELEASE_CERT" == *error* ]]; then
+  echo "[multiarch] FAILED release cert: $RELEASE_CERT" >&2
+  exit 1
+fi
+export RELEASE_PK_HEX RELEASE_CERT RELEASE_SK
+echo "[multiarch] per-release key rotated"
+
 ensure_fe
 
 for a in $TARGETS; do
@@ -274,7 +313,10 @@ PY
 
 for mf in "$MERGE"/manifest-*-linux-gnu.json; do
   [[ -f "$mf" ]] || continue
-  cargo run -q -p gv6-cli -- sign-manifest --manifest "$mf" --secret-key "$ROOT/keys/ota_ed25519.sk"
+  cargo run -q -p gv6-cli -- sign-manifest --manifest "$mf" --secret-key "$ROOT/keys/ota_ed25519.sk" \
+    --build-id "$GV6_BUILD_ID" \
+    --release-pubkey "$RELEASE_PK_HEX" \
+    --release-cert "$RELEASE_CERT"
 done
 
 # Back-compat: host arch also as manifest.json for single-arch OTA scripts
