@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # green-v6 一键安装脚本 (sh)
 #
-# 从 greenpng/green-v7 下载签名发布资产 (x86_64 / aarch64), 校验 sha256 +
+# 从公开安装仓库 greenpng/install 下载签名发布资产 (x86_64 / aarch64), 校验 sha256 +
 # ed25519 模块签名, 落地 /opt/green-v6, 生成 systemd 服务。
-# 旧版本兜底: greenpng/gv6-releases (v6.0.28 及更早发布仍在旧仓库)。
+# 旧版本兜底: greenpng/gv6-releases (v6.0.x 及更早发布仍在旧仓库)。
 #
 # 数据库/缓存连接信息按"管理面 / 业务面 / 缓存"分组填写:
 #   - 业务面(探测/分析): GV6_DATABASE_URL  GV6_BIZ_DATABASE_URL  GV6_ASSOCIATION_DATABASE_URL
@@ -12,7 +12,7 @@
 #   - 管理面板登录:        OAuth 跳转官网域名 (GV6_OFFICIAL_URL + GV6_OAUTH_ADMIN_EMAILS)
 #
 # 用法:
-#   bash install.sh [--version 6.0.28] [--arch auto|x86_64|aarch64]
+#   bash install.sh [--version 7.0.0] [--arch auto|x86_64|aarch64]
 #                   [--prefix /opt/green-v6] [--env-file path]
 #                   [--with-docker] [--no-systemd] [--yes]
 #
@@ -21,7 +21,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RELEASE_REPO="${GV6_RELEASE_REPO:-greenpng/green-v7}"
+RELEASE_REPO="${GV6_RELEASE_REPO:-greenpng/install}"
 LEGACY_REPO="${GV6_LEGACY_RELEASE_REPO:-greenpng/gv6-releases}"
 RAW_BASE="${GV6_RAW_BASE:-https://raw.githubusercontent.com/greenpng/install/main}"
 PREFIX="${GV6_PREFIX:-/opt/green-v6}"
