@@ -39,7 +39,14 @@ check() { # check <name> <expected_rc/status> <actual>
 GOT=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$ADMIN/v1/health")
 check "control-plane health ($ADMIN/v1/health)" "200" "$GOT"
 
-GOT=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$PROBE/v1/health")
+# probe plane may take a few seconds to open the hub (biz/assoc store threads
+# retry on late DB readiness) — wait for it before failing
+GOT=000
+for i in $(seq 1 30); do
+  GOT=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$PROBE/v1/health" || true)
+  [[ "$GOT" == "200" ]] && break
+  sleep 1
+done
 check "probe-plane health ($PROBE/v1/health)" "200" "$GOT"
 
 if [[ -n "$CONSOLE" ]]; then

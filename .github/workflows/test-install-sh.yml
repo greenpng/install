@@ -47,15 +47,23 @@ jobs:
             echo "REDIS_PASSWORD=$(openssl rand -hex 16)" >> .env
           fi
           docker compose up -d
-          for i in $(seq 1 60); do
-            if docker compose exec -T postgres pg_isready -U gv6 >/dev/null 2>&1; then
-              echo "postgres ready after ${i}s"
-              break
-            fi
-            echo "waiting for postgres (${i}/60)"
-            sleep 1
+          # pg_isready is not enough: /docker-entrypoint-initdb.d may still be
+          # creating gv6_biz/gv6_admin/gv6_assoc — the probe plane panics its
+          # biz/assoc threads and degrades to gateway-only if those DBs are
+          # missing when gv6-service starts
+          for db in greenv6 gv6_biz gv6_admin gv6_assoc; do
+            ok=0
+            for i in $(seq 1 90); do
+              if docker compose exec -T postgres psql -U gv6 -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$db'" 2>/dev/null | grep -q 1; then
+                echo "db $db ready after ${i}s"
+                ok=1
+                break
+              fi
+              echo "waiting for db $db (${i}/90)"
+              sleep 1
+            done
+            [[ "$ok" == 1 ]] || { echo "db $db never appeared" >&2; exit 1; }
           done
-          docker compose exec -T postgres pg_isready -U gv6
 
       - name: write connection env file (管理面/业务面分组)
         run: |
