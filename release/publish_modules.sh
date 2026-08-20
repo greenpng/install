@@ -11,8 +11,7 @@
 # the existing per-release key + build_id, so nodes that already bound the key
 # keep accepting the new signatures.
 set -euo pipefail
-SRC_ROOT="${GV6_SRC:-$(cd "$(dirname "$0")/../../.." && pwd)}"
-ROOT="$SRC_ROOT"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 VERSION="$(tr -d '[:space:]' < VERSION)"
 OUT="$ROOT/dist/release-$VERSION"
@@ -62,7 +61,7 @@ export GV6_RELEASE_VERSION="$VERSION"
 export GV6_MODULE_VERSION="$VERSION"
 ARCH="$(uname -m)"
 TRIPLE="${ARCH}-linux-gnu"
-REPO="${GV6_RELEASE_REPO:-greenpng/gv6-releases}"
+REPO="${GV6_RELEASE_REPO:-greenpng/install}"
 
 if [[ $# -lt 1 ]]; then
   echo "USAGE: $0 <module> [module...]" >&2

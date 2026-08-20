@@ -8,7 +8,7 @@
 # Env:
 #   VERSION          default: from /opt/green-v6/VERSION or required
 #   INSTALL_ROOT     default: /opt/green-v6
-#   RELEASE_REPO     default: greenpng/gv6-releases
+#   RELEASE_REPO     default: greenpng/install
 #   ARCH_TRIPLE      default: auto from uname -m → {arch}-linux-gnu
 #   REQUIRE_SHA      default: 1 — fail if manifest lacks runtime.sha256
 #   HEALTH_URL       default: http://127.0.0.1:28680/v1/health

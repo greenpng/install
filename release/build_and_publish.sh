@@ -1,17 +1,11 @@
 #!/usr/bin/env bash
-# Build modules, harden, sign, publish to public gv6-releases (assets only).
-# Mirror of green-v7 release/build_and_publish.sh (hardened flow: build_id +
-# per-release key rotation + string obfuscation, see README hardening notes).
+# Build modules, harden, sign, publish assets (host repo: greenpng/install).
 set -euo pipefail
-SRC_ROOT="${GV6_SRC:-$(cd "$(dirname "$0")/../../.." && pwd)}"
-ROOT="$SRC_ROOT"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 VERSION="$(cat VERSION | tr -d '[:space:]')"
 OUT="$ROOT/dist/release-$VERSION"
 mkdir -p "$OUT" keys
-# v7 layout (probe/fe, panel/admin-spa) vs legacy v6 layout (fe/, admin-spa/)
-FE_DIR="probe/fe"; [[ -d "$ROOT/probe/fe" ]] || FE_DIR="fe"
-SPA_DIR="panel/admin-spa"; [[ -d "$ROOT/panel/admin-spa" ]] || SPA_DIR="admin-spa"
 
 # P0-1: per-release random build id. Every release differs, so a patch derived
 # from a previous binary cannot be reused. Also exported into every crate
@@ -69,7 +63,7 @@ echo "[release] per-release key rotated; cert=$(printf '%.16s' "$RELEASE_CERT")â
 
 # SSOT: product + FE + cool tickets all use root VERSION (v6 semver only).
 # Rebuild min/pin so __GV5_BUILD_IMPL__ matches VERSION â€” do not tar a stale stamp.
-echo -n "$VERSION" > "$ROOT/$FE_DIR/VERSION"
+echo -n "$VERSION" > "$ROOT/probe/fe/VERSION"
 echo "[release] product_version SSOT=$VERSION (fe/VERSION synced)"
 if [[ -x "$ROOT/scripts/fe/rebuild_bundles.sh" ]]; then
   echo "[release] rebuild FE bundles so pin/entry stamp == $VERSION"
@@ -142,10 +136,10 @@ if [[ -f keys/ota_ed25519.pk ]]; then
   cp -f keys/ota_ed25519.pk "$OUT/ota_ed25519.pk"
 fi
 mkdir -p "$OUT/admin-spa"
-cp -f "$SPA_DIR"/* "$OUT/admin-spa/" 2>/dev/null || true
+cp -f panel/admin-spa/* "$OUT/admin-spa/" 2>/dev/null || true
 # FE assets (product_version path + cool invalidate)
 FE_ASSET=""
-if [[ -d "$FE_DIR" ]]; then
+if [[ -d probe/fe ]]; then
   FE_ASSET="fe-${VERSION}.tgz"
   if [[ -n "${GV6_FE_MASTER_TGZ:-}" && -f "$GV6_FE_MASTER_TGZ" ]]; then
     # CI: single shared FE bundle (obfuscation is not byte-deterministic across
@@ -153,7 +147,7 @@ if [[ -d "$FE_DIR" ]]; then
     cp -f "$GV6_FE_MASTER_TGZ" "$OUT/$FE_ASSET"
   else
     # -h: dereference symlinks so OTA safe extract (no symlink members) stays simple.
-    tar -C "$ROOT" -czhf "$OUT/$FE_ASSET" "$FE_DIR"
+    tar -C "$ROOT" -czhf "$OUT/$FE_ASSET" probe/fe
   fi
   echo -n "$VERSION" > "$OUT/VERSION"
   echo -n "$VERSION" > "$OUT/fe.VERSION"
@@ -223,7 +217,7 @@ if [[ "${SKIP_PUBLISH:-0}" == "1" ]]; then
   exit 0
 fi
 
-REPO="${GV6_RELEASE_REPO:-greenpng/gv6-releases}"
+REPO="${GV6_RELEASE_REPO:-greenpng/install}"
 if command -v gh >/dev/null 2>&1; then
   if gh release view "v${VERSION}" --repo "$REPO" >/dev/null 2>&1; then
     echo "[release] release v${VERSION} exists, uploading new assets (no clobber)..."

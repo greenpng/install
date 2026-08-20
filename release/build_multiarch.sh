@@ -12,13 +12,9 @@
 #   USE_CROSS=0       — skip foreign arch (default: auto ON if docker+cross exist)
 #   SKIP_PUBLISH=1    — do not gh upload
 set -euo pipefail
-SRC_ROOT="${GV6_SRC:-$(cd "$(dirname "$0")/../../.." && pwd)}"
-ROOT="$SRC_ROOT"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 VERSION="$(tr -d '[:space:]' < VERSION)"
-# v7 layout (probe/fe, panel/admin-spa) vs legacy v6 layout (fe/, admin-spa/)
-FE_DIR="probe/fe"; [[ -d "$ROOT/probe/fe" ]] || FE_DIR="fe"
-SPA_DIR="panel/admin-spa"; [[ -d "$ROOT/panel/admin-spa" ]] || SPA_DIR="admin-spa"
 # P0-1/P0-4: one build_id + obf salt for the whole release (all arches share it).
 GV6_BUILD_ID="${GV6_BUILD_ID:-$(openssl rand -hex 12)}"
 export GV6_BUILD_ID
@@ -33,7 +29,7 @@ case "$HOST_ARCH" in
 esac
 
 if [[ "${HOST_ONLY:-0}" == "1" ]]; then
-  exec bash "$(dirname "$0")/build_and_publish.sh"
+  exec bash "$ROOT/release/build_and_publish.sh"
 fi
 
 need_cross=0
@@ -97,7 +93,7 @@ ensure_keys() {
 }
 
 ensure_fe() {
-  echo -n "$VERSION" > "$ROOT/$FE_DIR/VERSION"
+  echo -n "$VERSION" > "$ROOT/probe/fe/VERSION"
   if [[ -x "$ROOT/scripts/fe/rebuild_bundles.sh" ]]; then
     bash "$ROOT/scripts/fe/rebuild_bundles.sh"
   fi
@@ -161,15 +157,15 @@ PY
   elif [[ -n "${GV6_FE_MASTER_TGZ:-}" && -f "$GV6_FE_MASTER_TGZ" ]]; then
     cp -f "$GV6_FE_MASTER_TGZ" "$out/fe-${VERSION}.tgz"
   elif [[ ! -f "$out/fe-${VERSION}.tgz" ]]; then
-    tar -C "$ROOT" -czhf "$out/fe-${VERSION}.tgz" "$FE_DIR"
+    tar -C "$ROOT" -czhf "$out/fe-${VERSION}.tgz" probe/fe
   fi
   admin_master="$(find "$ROOT/dist" -maxdepth 2 -name "admin-spa.tgz" ! -path "$out/*" | head -1 || true)"
   if [[ -n "$admin_master" && "$admin_master" != "$out/admin-spa.tgz" ]]; then
     cp -f "$admin_master" "$out/admin-spa.tgz"
   elif [[ -n "${GV6_ADMIN_MASTER_TGZ:-}" && -f "$GV6_ADMIN_MASTER_TGZ" ]]; then
     cp -f "$GV6_ADMIN_MASTER_TGZ" "$out/admin-spa.tgz"
-  elif [[ -d "$ROOT/$SPA_DIR" && ! -f "$out/admin-spa.tgz" ]]; then
-    tar -C "$ROOT" -czf "$out/admin-spa.tgz" "$SPA_DIR"
+  elif [[ -d "$ROOT/panel/admin-spa" && ! -f "$out/admin-spa.tgz" ]]; then
+    tar -C "$ROOT" -czf "$out/admin-spa.tgz" panel/admin-spa
   fi
 
   python3 - <<PY
@@ -337,7 +333,7 @@ if [[ "${SKIP_PUBLISH:-0}" == "1" ]]; then
   exit 0
 fi
 
-REPO="${GV6_RELEASE_REPO:-greenpng/gv6-releases}"
+REPO="${GV6_RELEASE_REPO:-greenpng/install}"
 if command -v gh >/dev/null 2>&1; then
   mapfile -t ASSETS < <(find "$MERGE" -maxdepth 1 -type f ! -name '*.sk' | sort)
   if gh release view "v${VERSION}" --repo "$REPO" >/dev/null 2>&1; then

@@ -4,8 +4,7 @@
 # Hardened flow: double-sign (root + per-release key) and emit a manifest bound
 # to build_id/release_pubkey/release_cert (see 07-HARDENING.md).
 set -euo pipefail
-SRC_ROOT="${GV6_SRC:-$(cd "$(dirname "$0")/../../.." && pwd)}"
-ROOT="$SRC_ROOT"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 VERSION="${1:-6.0.1}"
 OUT="$ROOT/dist/release-$VERSION"
@@ -111,7 +110,7 @@ cp -a panel/admin-spa/. "$OUT/admin-spa/" 2>/dev/null || true
 echo "[release] artifacts in $OUT"
 ls -la "$OUT" | head -40
 
-REPO="${GV6_RELEASE_REPO:-greenpng/gv6-releases}"
+REPO="${GV6_RELEASE_REPO:-greenpng/install}"
 if [[ "${PUBLISH:-1}" == "1" ]] && command -v gh >/dev/null; then
   if gh release view "v${VERSION}" --repo "$REPO" >/dev/null 2>&1; then
     echo "[release] upload to existing v${VERSION}"

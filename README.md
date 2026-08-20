@@ -2,9 +2,9 @@
 
 green-v6 的面向用户安装与发布测试仓库（`greenpng/install`）：
 
-- **用户安装**：sh 脚本（`install.sh`）从公开安装仓库 `greenpng/install` 下载签名产物（x86_64 / aarch64），旧版本自动兜底 `greenpng/gv6-releases` 安装；可配合内置 Docker 数据服务（`install.sh --with-docker`）。
+- **用户安装**：sh 脚本（`install.sh`）从公开安装仓库 `greenpng/install` 下载签名产物（x86_64 / aarch64），历史版本 6.x 与 7.x 均在同一仓库的 release；可配合内置 Docker 数据服务（`install.sh --with-docker`）。
 - **数据服务**：`docker/` 提供 PostgreSQL（4 库）+ Redis 容器（仅数据/缓存层；gv6 本体仍由 sh 脚本安装——官网独立部署，不进用户服务器）。
-- **打包**：`release/` 本地编译并签名发布资产（镜像自 green-v7 `release/`，发布经本地集成脚本落到公开安装仓库 `greenpng/install`，早期发布在 `greenpng/gv6-releases`）。**反破解加固流程**：每发布随机 `build_id` + 每版本临时签名密钥（根 key 签发证书）+ 模块双签（根 `sig` + 发布 `sig2`）+ 字符串混淆（详见 green-v7 `docs/07-HARDENING.md`）。
+- **打包**：`release/` 本地编译并签名发布资产（镜像自 green-v7 `release/`，发布经本地集成脚本落到公开安装仓库 `greenpng/install`，早期发布也已迁移至此）。**反破解加固流程**：每发布随机 `build_id` + 每版本临时签名密钥（根 key 签发证书）+ 模块双签（根 `sig` + 发布 `sig2`）+ 字符串混淆（详见 green-v7 `docs/07-HARDENING.md`）。
 - **测试**：`.github/workflows/` 在 GitHub runner（x86_64 + aarch64 双矩阵）上分别测试 sh 安装与 docker 安装两种路径。
 
 ## 目录结构
