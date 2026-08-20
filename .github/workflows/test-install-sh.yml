@@ -32,6 +32,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: clean stale services from previous runs (reused runners)
+        run: |
+          pkill -f gv6-service 2>/dev/null || true
+          (cd docker && docker compose down -v 2>/dev/null || true) || true
+          sleep 2
+
       - name: start data services (postgres 4db + redis)
         run: |
           set -euo pipefail
