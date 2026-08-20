@@ -147,8 +147,14 @@ cp -f "$SPA_DIR"/* "$OUT/admin-spa/" 2>/dev/null || true
 FE_ASSET=""
 if [[ -d "$FE_DIR" ]]; then
   FE_ASSET="fe-${VERSION}.tgz"
-  # -h: dereference symlinks so OTA safe extract (no symlink members) stays simple.
-  tar -C "$ROOT" -czhf "$OUT/$FE_ASSET" "$FE_DIR"
+  if [[ -n "${GV6_FE_MASTER_TGZ:-}" && -f "$GV6_FE_MASTER_TGZ" ]]; then
+    # CI: single shared FE bundle (obfuscation is not byte-deterministic across
+    # jobs) — every arch manifest must hash the SAME fe tgz
+    cp -f "$GV6_FE_MASTER_TGZ" "$OUT/$FE_ASSET"
+  else
+    # -h: dereference symlinks so OTA safe extract (no symlink members) stays simple.
+    tar -C "$ROOT" -czhf "$OUT/$FE_ASSET" "$FE_DIR"
+  fi
   echo -n "$VERSION" > "$OUT/VERSION"
   echo -n "$VERSION" > "$OUT/fe.VERSION"
 fi
@@ -202,7 +208,11 @@ head -40 "$OUT/manifest.json"
 
 # Pack SPA dir if present (GitHub assets must be files)
 if [[ -d "$OUT/admin-spa" ]]; then
-  tar -C "$OUT" -czf "$OUT/admin-spa.tgz" admin-spa
+  if [[ -n "${GV6_ADMIN_MASTER_TGZ:-}" && -f "$GV6_ADMIN_MASTER_TGZ" ]]; then
+    cp -f "$GV6_ADMIN_MASTER_TGZ" "$OUT/admin-spa.tgz"
+  else
+    tar -C "$OUT" -czf "$OUT/admin-spa.tgz" admin-spa
+  fi
 fi
 
 # Public assets only: files, exclude signing secret sidecars

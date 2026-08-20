@@ -158,14 +158,18 @@ PY
   fe_master="$(find "$ROOT/dist" -maxdepth 2 -name "fe-${VERSION}.tgz" ! -path "$out/*" | head -1 || true)"
   if [[ -n "$fe_master" && "$fe_master" != "$out/fe-${VERSION}.tgz" ]]; then
     cp -f "$fe_master" "$out/fe-${VERSION}.tgz"
+  elif [[ -n "${GV6_FE_MASTER_TGZ:-}" && -f "$GV6_FE_MASTER_TGZ" ]]; then
+    cp -f "$GV6_FE_MASTER_TGZ" "$out/fe-${VERSION}.tgz"
   elif [[ ! -f "$out/fe-${VERSION}.tgz" ]]; then
     tar -C "$ROOT" -czhf "$out/fe-${VERSION}.tgz" "$FE_DIR"
   fi
   admin_master="$(find "$ROOT/dist" -maxdepth 2 -name "admin-spa.tgz" ! -path "$out/*" | head -1 || true)"
   if [[ -n "$admin_master" && "$admin_master" != "$out/admin-spa.tgz" ]]; then
     cp -f "$admin_master" "$out/admin-spa.tgz"
+  elif [[ -n "${GV6_ADMIN_MASTER_TGZ:-}" && -f "$GV6_ADMIN_MASTER_TGZ" ]]; then
+    cp -f "$GV6_ADMIN_MASTER_TGZ" "$out/admin-spa.tgz"
   elif [[ -d "$ROOT/$SPA_DIR" && ! -f "$out/admin-spa.tgz" ]]; then
-    tar -C "$ROOT" -czf "$out/admin-spa.tgz" panel/admin-spa
+    tar -C "$ROOT" -czf "$out/admin-spa.tgz" "$SPA_DIR"
   fi
 
   python3 - <<PY
